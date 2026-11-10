@@ -4,10 +4,12 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -18,12 +20,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
 @Composable
-fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onClose: () -> Unit) {
+fun SettingsScreen(
+    settings: Settings,
+    onChange: (Settings) -> Unit,
+    hasChanges: Boolean,
+    onSave: () -> Unit,
+    onDiscard: () -> Unit
+) {
     val context = LocalContext.current
     val accent = Color(settings.theme.accent)
     val font = settings.uiFont.toFamily()
@@ -39,17 +48,26 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onClose: ()
         modifier = Modifier
             .fillMaxSize()
             .background(BgColor)
-            .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(16.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("AJUSTES", color = accent, fontFamily = font, fontSize = 20.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = onClose) {
-                Text("Cerrar", color = accent, fontFamily = font)
-            }
+            Text(
+                "AJUSTES",
+                color = accent,
+                fontFamily = font,
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                if (hasChanges) "● cambios sin guardar" else "✓ al día",
+                color = if (hasChanges) accent else MutedColor,
+                fontFamily = font,
+                fontSize = 12.sp
+            )
         }
 
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
 
             SectionTitle("RELOJ", accent, font)
             Label("Estilo", font)
@@ -67,6 +85,15 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onClose: ()
                 accent = accent,
                 font = font,
                 onSelect = { onChange(settings.copy(clockPos = it)) }
+            )
+            Label("Color del reloj", font)
+            SwatchRow(
+                items = CLOCK_COLORS.map { (color, name) ->
+                    Triple(color, name, if (color == 0L) settings.theme.accent else color)
+                },
+                selected = settings.clockColor,
+                font = font,
+                onSelect = { onChange(settings.copy(clockColor = it)) }
             )
             Label("Tamaño: ${settings.clockSize}", font)
             Slider(
@@ -107,6 +134,13 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onClose: ()
             )
 
             SectionTitle("INTERFAZ", accent, font)
+            Label("Tema de color", font)
+            SwatchRow(
+                items = ThemeChoice.values().map { Triple(it, it.label, it.accent) },
+                selected = settings.theme,
+                font = font,
+                onSelect = { onChange(settings.copy(theme = it)) }
+            )
             Label("Tipografía de la interfaz", font)
             ChoiceRow(
                 options = fontOptions(),
@@ -114,14 +148,6 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onClose: ()
                 accent = accent,
                 font = font,
                 onSelect = { onChange(settings.copy(uiFont = it)) }
-            )
-            Label("Tema de color", font)
-            ChoiceRow(
-                options = ThemeChoice.values().toList().map { it to it.label },
-                selected = settings.theme,
-                accent = accent,
-                font = font,
-                onSelect = { onChange(settings.copy(theme = it)) }
             )
 
             SectionTitle("FONDO", accent, font)
@@ -146,14 +172,25 @@ fun SettingsScreen(settings: Settings, onChange: (Settings) -> Unit, onClose: ()
             if (message.isNotEmpty()) {
                 Text(message, color = MutedColor, fontFamily = font, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
             }
+            Spacer(modifier = Modifier.height(24.dp))
+        }
 
-            Text(
-                "Launcher 1.1 · escribe para buscar, pulsa Atrás para cerrar el teclado",
-                color = MutedColor,
-                fontFamily = font,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(top = 32.dp, bottom = 24.dp)
-            )
+        // Botones fijos abajo: siempre visibles aunque el panel tenga scroll
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedButton(onClick = onDiscard, modifier = Modifier.weight(1f)) {
+                Text("Descartar", color = TextColor, fontFamily = font)
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Button(
+                onClick = onSave,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = accent, contentColor = BgColor)
+            ) {
+                Text("GUARDAR", fontFamily = font, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }
@@ -222,6 +259,42 @@ private fun <T> ChoiceRow(
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
                 Text(label, color = if (isOn) BgColor else TextColor, fontFamily = font, fontSize = 13.sp)
+            }
+        }
+    }
+}
+
+/** Muestras de color en círculo. Triple = (valor, nombre, color ARGB). */
+@Composable
+private fun <T> SwatchRow(
+    items: List<Triple<T, String, Long>>,
+    selected: T,
+    font: FontFamily,
+    onSelect: (T) -> Unit
+) {
+    Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+        items.forEach { (value, name, color) ->
+            val isOn = value == selected
+            Column(
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .clickable { onSelect(value) },
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(Color(color))
+                        .then(if (isOn) Modifier.border(3.dp, TextColor, CircleShape) else Modifier)
+                )
+                Text(
+                    name,
+                    color = if (isOn) TextColor else MutedColor,
+                    fontFamily = font,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
         }
     }

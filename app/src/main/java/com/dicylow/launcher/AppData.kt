@@ -45,7 +45,10 @@ fun loadWallpaper(context: Context, uri: Uri): ImageBitmap? {
 
 /** Caché de iconos pequeños para que el scroll sea fluido. */
 object IconCache {
-    private val cache = LruCache<String, ImageBitmap>(150)
+    private val cache = LruCache<String, ImageBitmap>(96)
+
+    /** Vacía la caché para liberar memoria cuando el launcher no está en primer plano. */
+    fun clear() = cache.evictAll()
 
     fun get(context: Context, packageName: String): ImageBitmap? {
         cache.get(packageName)?.let { return it }

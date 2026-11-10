@@ -35,6 +35,15 @@ jobs:
       - name: Compilar APK
         run: gradle :app:assembleDebug --no-daemon
 
+      - name: Verificar que no pide internet
+        run: |
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt -type f 2>/dev/null | sort | tail -1)
+          if [ -z "$AAPT" ]; then echo "aapt no encontrado, se omite la verificación"; exit 0; fi
+          "$AAPT" dump permissions app/build/outputs/apk/debug/app-debug.apk | tee permisos.txt
+          if grep -q "android.permission.INTERNET" permisos.txt; then
+            echo "ERROR: la app pide acceso a internet"; exit 1
+          fi
+
       - name: Renombrar APK
         run: cp app/build/outputs/apk/debug/app-debug.apk launcher.apk
 

@@ -10,9 +10,8 @@ import androidx.compose.ui.text.font.FontFamily
 
 const val PREFS = "launcher_prefs"
 
-// Colores fijos de la interfaz. El acento cambia según el tema elegido.
+// Colores fijos de la interfaz
 val BgColor = Color(0xFF0B0B0F)
-val SurfaceColor = Color(0xFF14141B)
 val CardColor = Color(0xFF1C1C26)
 val TextColor = Color(0xFFE5E7EB)
 val MutedColor = Color(0xFF6B7280)
@@ -34,19 +33,39 @@ enum class FontChoice {
     }
 }
 
-enum class ThemeChoice(val label: String, val accent: Long) {
-    MATRIX("Matrix", 0xFF7CFF9AL),
-    AMBAR("Ámbar", 0xFFFFB347L),
-    CIAN("Cian", 0xFF5EEAD4L),
-    MAGENTA("Magenta", 0xFFF472B6L),
-    BLANCO("Blanco", 0xFFE5E7EBL)
+/** Cada tema tiene un color de acento y un color de superficie (fondo del buscador). */
+enum class ThemeChoice(val label: String, val accent: Long, val surface: Long) {
+    MATRIX("Matrix", 0xFF7CFF9AL, 0xFF0D1A12L),
+    AMBAR("Ámbar", 0xFFFFB347L, 0xFF1A1407L),
+    CIAN("Cian", 0xFF5EEAD4L, 0xFF071A1CL),
+    MAGENTA("Magenta", 0xFFF472B6L, 0xFF1C0A16L),
+    VIOLETA("Violeta", 0xFFB388FFL, 0xFF140E22L),
+    ROJO("Rojo", 0xFFFF6B6BL, 0xFF1C0C0CL),
+    AZUL("Azul hielo", 0xFF7DD3FCL, 0xFF09161FL),
+    NORD("Nord", 0xFF88C0D0L, 0xFF1B2129L),
+    BLANCO("Blanco", 0xFFF3F4F6L, 0xFF16161DL)
 }
+
+/** Colores que puedes elegir para el reloj. 0 = usar el color del tema. */
+val CLOCK_COLORS: List<Pair<Long, String>> = listOf(
+    0L to "Tema",
+    0xFFFFFFFFL to "Blanco",
+    0xFF7CFF9AL to "Verde",
+    0xFFFFB000L to "Ámbar",
+    0xFFFF7A18L to "Naranja",
+    0xFFFF5252L to "Rojo",
+    0xFFFF5FA2L to "Rosa",
+    0xFFB388FFL to "Violeta",
+    0xFF7DD3FCL to "Azul",
+    0xFF5EEAD4L to "Cian"
+)
 
 data class Settings(
     val clockStyle: ClockStyle = ClockStyle.BIG,
     val clockPos: ClockPos = ClockPos.CENTER,
     val clockSize: Int = 72,
     val clockFont: FontChoice = FontChoice.MONO,
+    val clockColor: Long = 0L,
     val clockBold: Boolean = false,
     val showSeconds: Boolean = false,
     val showDate: Boolean = true,
@@ -57,12 +76,14 @@ data class Settings(
     val theme: ThemeChoice = ThemeChoice.MATRIX,
     val dim: Float = 0.4f
 ) {
-    fun save(sp: SharedPreferences) {
-        sp.edit()
+    /** commit() escribe en disco de forma síncrona: si devuelve true, el cambio quedó guardado. */
+    fun save(sp: SharedPreferences): Boolean {
+        return sp.edit()
             .putString("clock_style", clockStyle.name)
             .putString("clock_pos", clockPos.name)
             .putInt("clock_size", clockSize)
             .putString("clock_font", clockFont.name)
+            .putLong("clock_color", clockColor)
             .putBoolean("clock_bold", clockBold)
             .putBoolean("show_seconds", showSeconds)
             .putBoolean("show_date", showDate)
@@ -72,7 +93,7 @@ data class Settings(
             .putString("ui_font", uiFont.name)
             .putString("theme", theme.name)
             .putFloat("dim", dim)
-            .apply()
+            .commit()
     }
 
     companion object {
@@ -83,6 +104,7 @@ data class Settings(
                 clockPos = sp.enumOr("clock_pos", d.clockPos),
                 clockSize = sp.getInt("clock_size", d.clockSize),
                 clockFont = sp.enumOr("clock_font", d.clockFont),
+                clockColor = sp.getLong("clock_color", d.clockColor),
                 clockBold = sp.getBoolean("clock_bold", d.clockBold),
                 showSeconds = sp.getBoolean("show_seconds", d.showSeconds),
                 showDate = sp.getBoolean("show_date", d.showDate),
@@ -102,10 +124,7 @@ private inline fun <reified T : Enum<T>> SharedPreferences.enumOr(key: String, d
     return enumValues<T>().firstOrNull { it.name == name } ?: default
 }
 
-/**
- * Pone la imagen como fondo del SISTEMA. Así el launcher y la vista de apps
- * abiertas usan el mismo fondo, en vez del fondo del launcher anterior.
- */
+/** Pone la imagen como fondo del sistema, para que el launcher y la vista de apps usen el mismo. */
 fun applyWallpaper(context: Context, uri: Uri): Boolean {
     return try {
         val resolver = context.contentResolver
@@ -128,7 +147,7 @@ fun applyWallpaper(context: Context, uri: Uri): Boolean {
     }
 }
 
-/** Devuelve el fondo del sistema al que trae el teléfono. */
+/** Devuelve el fondo original del teléfono. */
 fun clearWallpaper(context: Context): Boolean {
     return try {
         WallpaperManager.getInstance(context).clear()
