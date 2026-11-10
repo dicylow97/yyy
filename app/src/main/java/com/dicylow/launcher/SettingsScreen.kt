@@ -158,7 +158,7 @@ fun SettingsScreen(
                 valueRange = 0f..0.9f,
                 colors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent)
             )
-            Row(modifier = Modifier.padding(top = 8.dp)) {
+            Row(modifier = Modifier.padding(top = 8.dp).horizontalScroll(rememberScrollState())) {
                 OutlinedButton(onClick = { pickWallpaper.launch(arrayOf("image/*")) }) {
                     Text("Elegir fondo", color = accent, fontFamily = font)
                 }
@@ -167,6 +167,12 @@ fun SettingsScreen(
                     message = if (clearWallpaper(context)) "Fondo restaurado" else "No se pudo restaurar"
                 }) {
                     Text("Quitar fondo", color = TextColor, fontFamily = font)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                OutlinedButton(onClick = {
+                    message = if (applyBundledWallpaper(context)) "Fondo ámbar aplicado" else "No se pudo aplicar el fondo ámbar"
+                }) {
+                    Text("Fondo ámbar", color = accent, fontFamily = font)
                 }
             }
             if (message.isNotEmpty()) {

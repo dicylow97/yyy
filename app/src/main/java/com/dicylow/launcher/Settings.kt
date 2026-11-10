@@ -147,6 +147,18 @@ fun applyWallpaper(context: Context, uri: Uri): Boolean {
     }
 }
 
+/** Pone el fondo ámbar que viene incluido en la app como fondo del sistema. */
+fun applyBundledWallpaper(context: Context): Boolean {
+    return try {
+        val bitmap = BitmapFactory.decodeResource(context.resources, R.drawable.fondo_ambar) ?: return false
+        WallpaperManager.getInstance(context).setBitmap(bitmap)
+        bitmap.recycle()
+        true
+    } catch (e: Exception) {
+        false
+    }
+}
+
 /** Devuelve el fondo original del teléfono. */
 fun clearWallpaper(context: Context): Boolean {
     return try {
