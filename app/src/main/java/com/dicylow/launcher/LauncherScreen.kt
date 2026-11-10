@@ -1,54 +1,28 @@
 package com.dicylow.launcher
 
-import android.content.Context
-import android.content.Intent
-import android.content.SharedPreferences
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,61 +33,45 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.roundToInt
-
-const val PREFS = "launcher_prefs"
-private const val KEY_WALLPAPER = "wallpaper"
-private const val KEY_DIM = "dim"
-
-private val BgColor = Color(0xFF0B0B0F)
-private val SurfaceColor = Color(0xFF14141B)
-private val AccentColor = Color(0xFF7CFF9A)
-private val TextColor = Color(0xFFE5E7EB)
-private val MutedColor = Color(0xFF6B7280)
 
 @Composable
-fun LauncherScreen(prefs: SharedPreferences, resetKey: Int, appsKey: Int) {
+fun LauncherScreen(
+    settings: Settings,
+    onChange: (Settings) -> Unit,
+    resetKey: Int,
+    appsKey: Int
+) {
     val context = LocalContext.current
     val focusManager = LocalFocusManager.current
+    val keyboard = LocalSoftwareKeyboardController.current
+    val accent = Color(settings.theme.accent)
+    val uiFont = settings.uiFont.toFamily()
 
     var query by remember { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
-    var wallpaperUri by remember { mutableStateOf(prefs.getString(KEY_WALLPAPER, null)) }
-    var dim by remember { mutableFloatStateOf(prefs.getFloat(KEY_DIM, 0.4f)) }
 
-    // Al volver a la pantalla de inicio, el buscador se vacía
-    LaunchedEffect(resetKey) { query = "" }
+    // Cada vez que pulsas Inicio, el launcher vuelve limpio
+    LaunchedEffect(resetKey) {
+        query = ""
+        showSettings = false
+        focusManager.clearFocus()
+    }
 
-    // Se recarga la lista cuando se instala o desinstala una app (al volver al launcher)
     val apps by produceState<List<AppInfo>>(initialValue = emptyList(), key1 = appsKey) {
         value = withContext(Dispatchers.IO) { loadApps(context) }
     }
 
-    val wallpaper by produceState<ImageBitmap?>(initialValue = null, key1 = wallpaperUri) {
-        val uriText = wallpaperUri
-        value = if (uriText == null) {
-            null
-        } else {
-            withContext(Dispatchers.IO) { loadWallpaper(context, Uri.parse(uriText)) }
-        }
-    }
-
-    val time by produceState(initialValue = LocalDateTime.now()) {
+    // El reloj se actualiza cada segundo solo si hace falta (segundos o estilo terminal)
+    val now by produceState(
+        initialValue = LocalDateTime.now(),
+        key1 = settings.showSeconds,
+        key2 = settings.clockStyle
+    ) {
+        val interval = if (settings.showSeconds || settings.clockStyle == ClockStyle.TERMINAL) 1_000L else 15_000L
         while (true) {
             value = LocalDateTime.now()
-            delay(15_000)
-        }
-    }
-
-    val pickWallpaper = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri != null) {
-            try {
-                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (e: Exception) {
-                // Algunos proveedores no dan permiso persistente; igual funciona mientras la app esté abierta
-            }
-            prefs.edit().putString(KEY_WALLPAPER, uri.toString()).apply()
-            wallpaperUri = uri.toString()
+            delay(interval)
         }
     }
 
@@ -135,138 +93,108 @@ fun LauncherScreen(prefs: SharedPreferences, resetKey: Int, appsKey: Int) {
 
     fun launch(app: AppInfo) {
         focusManager.clearFocus()
+        keyboard?.hide()
         context.packageManager.getLaunchIntentForPackage(app.packageName)?.let { context.startActivity(it) }
+    }
+
+    // Gesto/botón atrás: primero cierra ajustes, luego el teclado, luego borra la búsqueda.
+    BackHandler(enabled = showSettings || focused || query.isNotEmpty()) {
+        when {
+            showSettings -> { showSettings = false }
+            focused -> {
+                focusManager.clearFocus()
+                keyboard?.hide()
+            }
+            else -> { query = "" }
+        }
     }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
-            primary = AccentColor,
+            primary = accent,
             background = BgColor,
             surface = SurfaceColor,
             onSurface = TextColor,
             onBackground = TextColor
         )
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(BgColor)) {
+        Box(modifier = Modifier.fillMaxSize()) {
 
-            wallpaper?.let {
-                Image(
-                    bitmap = it,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            // Sin fondo propio: se ve el fondo del sistema (windowShowWallpaper)
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = settings.dim)))
 
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = dim)))
-
-            Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-
-                // Buscador arriba, estilo rofi/i3
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextField(
-                        value = query,
-                        onValueChange = { query = it },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        placeholder = { Text("> buscar app", color = MutedColor) },
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                        keyboardActions = KeyboardActions(
-                            onGo = { results.firstOrNull()?.let { launch(it) } }
-                        ),
-                        colors = TextFieldDefaults.colors(
-                            focusedTextColor = TextColor,
-                            unfocusedTextColor = TextColor,
-                            focusedContainerColor = SurfaceColor,
-                            unfocusedContainerColor = SurfaceColor,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            cursorColor = AccentColor
-                        )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .windowInsetsPadding(WindowInsets.safeDrawing)
+                    .padding(16.dp)
+            ) {
+                if (settings.searchPos == SearchPos.TOP) {
+                    SearchBar(
+                        query = query,
+                        onQueryChange = { query = it },
+                        prompt = settings.prompt,
+                        accent = accent,
+                        font = uiFont,
+                        onFocus = { focused = it },
+                        onGo = { results.firstOrNull()?.let { launch(it) } },
+                        onSettings = { showSettings = true }
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    TextButton(onClick = { showSettings = true }) {
-                        Text("⚙", color = AccentColor, fontSize = 22.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                if (query.isBlank()) {
+                    val interaction = remember { MutableInteractionSource() }
+                    val align = when (settings.clockPos) {
+                        ClockPos.TOP -> Alignment.TopCenter
+                        ClockPos.CENTER -> Alignment.Center
+                        ClockPos.BOTTOM -> Alignment.BottomCenter
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .clickable(interactionSource = interaction, indication = null) {
+                                focusManager.clearFocus()
+                                keyboard?.hide()
+                            },
+                        contentAlignment = align
+                    ) {
+                        ClockView(settings = settings, now = now, accent = accent, uiFont = uiFont)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                        if (results.isEmpty()) {
+                            item {
+                                Text("sin resultados", color = MutedColor, fontFamily = uiFont, modifier = Modifier.padding(12.dp))
+                            }
+                        }
+                        items(results, key = { it.packageName }) { app ->
+                            AppRow(app = app, font = uiFont, onClick = { launch(app) })
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (query.isBlank()) {
-                    // Sin búsqueda: solo el reloj en el centro, nada de cajón de apps
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = time.format(DateTimeFormatter.ofPattern("HH:mm")),
-                                color = TextColor,
-                                fontSize = 72.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                            Text(
-                                text = time.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.forLanguageTag("es"))),
-                                color = MutedColor,
-                                fontSize = 16.sp
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Text(
-                                text = "escribe para buscar una app",
-                                color = MutedColor,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
-                } else {
-                    if (results.isEmpty()) {
-                        Text(
-                            text = "sin resultados",
-                            color = MutedColor,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                    LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(results, key = { it.packageName }) { app ->
-                            AppRow(app = app, onClick = { launch(app) })
-                        }
-                    }
+                if (settings.searchPos == SearchPos.BOTTOM) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    SearchBar(
+                        query = query,
+                        onQueryChange = { query = it },
+                        prompt = settings.prompt,
+                        accent = accent,
+                        font = uiFont,
+                        onFocus = { focused = it },
+                        onGo = { results.firstOrNull()?.let { launch(it) } },
+                        onSettings = { showSettings = true }
+                    )
                 }
             }
 
             if (showSettings) {
-                AlertDialog(
-                    onDismissRequest = { showSettings = false },
-                    containerColor = SurfaceColor,
-                    title = { Text("Ajustes", color = TextColor) },
-                    text = {
-                        Column {
-                            Text(
-                                text = "Oscurecer fondo: ${(dim * 100).roundToInt()}%",
-                                color = TextColor
-                            )
-                            Slider(
-                                value = dim,
-                                onValueChange = {
-                                    dim = it
-                                    prefs.edit().putFloat(KEY_DIM, it).apply()
-                                },
-                                valueRange = 0f..0.9f
-                            )
-                            TextButton(onClick = { pickWallpaper.launch(arrayOf("image/*")) }) {
-                                Text("Elegir fondo de pantalla", color = AccentColor)
-                            }
-                            TextButton(onClick = {
-                                prefs.edit().remove(KEY_WALLPAPER).apply()
-                                wallpaperUri = null
-                            }) {
-                                Text("Quitar fondo", color = TextColor)
-                            }
-                        }
-                    },
-                    confirmButton = {
-                        TextButton(onClick = { showSettings = false }) {
-                            Text("Cerrar", color = AccentColor)
-                        }
-                    }
+                SettingsScreen(
+                    settings = settings,
+                    onChange = onChange,
+                    onClose = { showSettings = false }
                 )
             }
         }
@@ -274,7 +202,103 @@ fun LauncherScreen(prefs: SharedPreferences, resetKey: Int, appsKey: Int) {
 }
 
 @Composable
-fun AppRow(app: AppInfo, onClick: () -> Unit) {
+private fun SearchBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    prompt: String,
+    accent: Color,
+    font: FontFamily,
+    onFocus: (Boolean) -> Unit,
+    onGo: () -> Unit,
+    onSettings: () -> Unit
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        TextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = Modifier.weight(1f).onFocusChanged { onFocus(it.isFocused) },
+            singleLine = true,
+            placeholder = { Text("$prompt buscar app", color = MutedColor, fontFamily = font) },
+            shape = RoundedCornerShape(12.dp),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+            keyboardActions = KeyboardActions(onGo = { onGo() }),
+            colors = TextFieldDefaults.colors(
+                focusedTextColor = TextColor,
+                unfocusedTextColor = TextColor,
+                focusedContainerColor = SurfaceColor,
+                unfocusedContainerColor = SurfaceColor,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                cursorColor = accent
+            )
+        )
+        TextButton(onClick = onSettings) {
+            Text("⚙", color = accent, fontSize = 22.sp)
+        }
+    }
+}
+
+@Composable
+private fun ClockView(settings: Settings, now: LocalDateTime, accent: Color, uiFont: FontFamily) {
+    val pattern = buildString {
+        append(if (settings.is24h) "HH:mm" else "h:mm")
+        if (settings.showSeconds) append(":ss")
+        if (!settings.is24h) append(" a")
+    }
+    val time = now.format(DateTimeFormatter.ofPattern(pattern, Locale.US))
+    val date = now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.forLanguageTag("es")))
+    val clockFont = settings.clockFont.toFamily()
+    val weight = when {
+        settings.clockBold -> FontWeight.Bold
+        settings.clockStyle == ClockStyle.MINIMAL -> FontWeight.Light
+        else -> FontWeight.Normal
+    }
+
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        when (settings.clockStyle) {
+            ClockStyle.TERMINAL -> {
+                Text("$ date", color = MutedColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                Row {
+                    Text(
+                        text = time,
+                        color = accent,
+                        fontSize = settings.clockSize.sp,
+                        fontFamily = clockFont,
+                        fontWeight = weight,
+                        maxLines = 1
+                    )
+                    // Cursor parpadeante
+                    Text(
+                        text = if (now.second % 2 == 0) "▌" else " ",
+                        color = accent,
+                        fontSize = settings.clockSize.sp,
+                        fontFamily = clockFont,
+                        maxLines = 1
+                    )
+                }
+                if (settings.showDate) {
+                    Text("# $date", color = MutedColor, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+            ClockStyle.BIG, ClockStyle.MINIMAL -> {
+                Text(
+                    text = time,
+                    color = if (settings.clockStyle == ClockStyle.BIG) accent else TextColor,
+                    fontSize = settings.clockSize.sp,
+                    fontFamily = clockFont,
+                    fontWeight = weight,
+                    maxLines = 1
+                )
+                if (settings.showDate) {
+                    Text(date, color = MutedColor, fontSize = 16.sp, fontFamily = uiFont)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AppRow(app: AppInfo, font: FontFamily, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -289,6 +313,7 @@ fun AppRow(app: AppInfo, onClick: () -> Unit) {
             text = app.label,
             color = TextColor,
             fontSize = 16.sp,
+            fontFamily = font,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
@@ -298,16 +323,12 @@ fun AppRow(app: AppInfo, onClick: () -> Unit) {
 @Composable
 fun AppIcon(packageName: String) {
     val context = LocalContext.current
-    val icon by produceState<ImageBitmap?>(initialValue = null, key1 = packageName) {
+    val icon by produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, key1 = packageName) {
         value = withContext(Dispatchers.IO) { IconCache.get(context, packageName) }
     }
     Box(modifier = Modifier.size(32.dp)) {
         icon?.let {
-            Image(
-                bitmap = it,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize()
-            )
+            Image(bitmap = it, contentDescription = null, modifier = Modifier.fillMaxSize())
         }
     }
 }

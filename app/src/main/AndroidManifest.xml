@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permite ver la lista de apps instaladas sin QUERY_ALL_PACKAGES -->
+    <!-- Necesario para poner el fondo del sistema desde el launcher -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+
+    <!-- Permite ver la lista de apps instaladas -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -11,6 +14,7 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="Launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.Launcher">
@@ -20,7 +24,8 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
-            android:stateNotNeeded="true">
+            android:stateNotNeeded="true"
+            android:windowSoftInputMode="adjustNothing">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.HOME" />

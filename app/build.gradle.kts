@@ -11,8 +11,9 @@ android {
         applicationId = "com.dicylow.launcher"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0"
+        // Cada compilación tiene un número mayor, así Android la instala encima de la anterior
+        versionCode = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionName = "1.1"
     }
 
     // Firma fija: así cada versión nueva se instala encima de la anterior
