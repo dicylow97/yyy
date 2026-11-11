@@ -34,19 +34,17 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 @Composable
 fun LauncherScreen(
@@ -71,7 +69,7 @@ fun LauncherScreen(
     val accent = Color(s.theme.accent)
     val surface = Color(s.theme.surface)
     val clockColor = if (s.clockColor == 0L) accent else Color(s.clockColor)
-    val uiFont = s.uiFont.toFamily()
+    val uiFont = s.uiFont.family()
 
     LaunchedEffect(resetKey) {
         query = ""
@@ -321,61 +319,6 @@ private fun SearchField(
 
         TextButton(onClick = onSettings) {
             Text("⚙", color = accent, fontSize = 22.sp)
-        }
-    }
-}
-
-@Composable
-private fun ClockView(s: Settings, now: LocalDateTime, clockColor: Color, uiFont: FontFamily) {
-    val pattern = buildString {
-        append(if (s.is24h) "HH:mm" else "h:mm")
-        if (s.showSeconds) append(":ss")
-        if (!s.is24h) append(" a")
-    }
-    val time = now.format(DateTimeFormatter.ofPattern(pattern, Locale.US))
-    val date = now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.forLanguageTag("es")))
-    val clockFont = s.clockFont.toFamily()
-    val weight = when {
-        s.clockBold -> FontWeight.Bold
-        s.clockStyle == ClockStyle.MINIMAL -> FontWeight.Light
-        else -> FontWeight.Normal
-    }
-
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        if (s.clockStyle == ClockStyle.TERMINAL) {
-            Text("$ date", color = MutedColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
-            Row {
-                Text(
-                    text = time,
-                    color = clockColor,
-                    fontSize = s.clockSize.sp,
-                    fontFamily = clockFont,
-                    fontWeight = weight,
-                    maxLines = 1
-                )
-                Text(
-                    text = if (now.second % 2 == 0) "█" else " ",
-                    color = clockColor,
-                    fontSize = s.clockSize.sp,
-                    fontFamily = clockFont,
-                    maxLines = 1
-                )
-            }
-            if (s.showDate) {
-                Text("# $date", color = MutedColor, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
-            }
-        } else {
-            Text(
-                text = time,
-                color = clockColor,
-                fontSize = s.clockSize.sp,
-                fontFamily = clockFont,
-                fontWeight = weight,
-                maxLines = 1
-            )
-            if (s.showDate) {
-                Text(date, color = MutedColor, fontSize = 16.sp, fontFamily = uiFont)
-            }
         }
     }
 }

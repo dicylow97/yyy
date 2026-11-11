@@ -35,7 +35,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val accent = Color(settings.theme.accent)
-    val font = settings.uiFont.toFamily()
+    val font = settings.uiFont.family()
     var message by remember { mutableStateOf("") }
 
     val pickWallpaper = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
@@ -99,7 +99,7 @@ fun SettingsScreen(
             Slider(
                 value = settings.clockSize.toFloat(),
                 onValueChange = { onChange(settings.copy(clockSize = it.roundToInt())) },
-                valueRange = 40f..120f,
+                valueRange = 40f..220f,
                 colors = SliderDefaults.colors(thumbColor = accent, activeTrackColor = accent)
             )
             Label("Tipografía del reloj", font)
@@ -114,6 +114,8 @@ fun SettingsScreen(
             SwitchRow("Mostrar segundos", settings.showSeconds, accent, font) { onChange(settings.copy(showSeconds = it)) }
             SwitchRow("Mostrar fecha", settings.showDate, accent, font) { onChange(settings.copy(showDate = it)) }
             SwitchRow("Formato 24 horas", settings.is24h, accent, font) { onChange(settings.copy(is24h = it)) }
+            SwitchRow("Mostrar AM/PM (pequeño, al lado)", settings.showAmPm, accent, font) { onChange(settings.copy(showAmPm = it)) }
+            SwitchRow("Hora en dos líneas (muy grande)", settings.clockStacked, accent, font) { onChange(settings.copy(clockStacked = it)) }
 
             SectionTitle("BUSCADOR", accent, font)
             Label("Posición", font)
@@ -195,12 +197,7 @@ fun SettingsScreen(
     }
 }
 
-private fun fontOptions(): List<Pair<FontChoice, String>> = listOf(
-    FontChoice.MONO to "Mono",
-    FontChoice.SERIF to "Serif",
-    FontChoice.SANS to "Sans",
-    FontChoice.CURSIVE to "Cursiva"
-)
+private fun fontOptions(): List<Pair<FontChoice, String>> = FontChoice.values().map { it to it.label }
 
 @Composable
 private fun SectionTitle(text: String, accent: Color, font: FontFamily) {

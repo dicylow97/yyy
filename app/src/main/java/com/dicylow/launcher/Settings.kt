@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 
 const val PREFS = "launcher_prefs"
 
@@ -22,18 +21,25 @@ enum class ClockPos { TOP, CENTER, BOTTOM }
 
 enum class SearchPos { TOP, BOTTOM }
 
-enum class FontChoice {
-    MONO, SERIF, SANS, CURSIVE;
-
-    fun toFamily(): FontFamily = when (this) {
-        MONO -> FontFamily.Monospace
-        SERIF -> FontFamily.Serif
-        SANS -> FontFamily.SansSerif
-        CURSIVE -> FontFamily.Cursive
-    }
+/** Fuentes: las del sistema y varias incluidas en la app (licencias libres). */
+enum class FontChoice(val label: String) {
+    MONO("Mono"),
+    SERIF("Serif"),
+    SANS("Sans"),
+    CURSIVE("Cursiva"),
+    INTER("Inter (estilo Apple)"),
+    DEJAVU_SANS("DejaVu Sans"),
+    DEJAVU_SERIF("DejaVu Serif"),
+    DEJAVU_MONO("DejaVu Mono"),
+    FREEMONO("Máquina de escribir"),
+    CARLITO("Carlito"),
+    CALADEA("Caladea"),
+    FREESANS("FreeSans"),
+    GFS_BASKERVILLE("Baskerville"),
+    GFS_PORSON("Porson")
 }
 
-/** Cada tema tiene un color de acento y un color de superficie (fondo del buscador). */
+/** Temas: acento, color de superficie (fondo del buscador) y nombre. */
 enum class ThemeChoice(val label: String, val accent: Long, val surface: Long) {
     MATRIX("Matrix", 0xFF7CFF9AL, 0xFF0D1A12L),
     AMBAR("Ámbar", 0xFFFFB347L, 0xFF1A1407L),
@@ -43,7 +49,18 @@ enum class ThemeChoice(val label: String, val accent: Long, val surface: Long) {
     ROJO("Rojo", 0xFFFF6B6BL, 0xFF1C0C0CL),
     AZUL("Azul hielo", 0xFF7DD3FCL, 0xFF09161FL),
     NORD("Nord", 0xFF88C0D0L, 0xFF1B2129L),
-    BLANCO("Blanco", 0xFFF3F4F6L, 0xFF16161DL)
+    BLANCO("Blanco", 0xFFF3F4F6L, 0xFF16161DL),
+    AZUL_APPLE("Azul Apple", 0xFF0A84FFL, 0xFF101A28L),
+    VERDE_APPLE("Verde Apple", 0xFF30D158L, 0xFF0F1D14L),
+    NARANJA_APPLE("Naranja Apple", 0xFFFF9F0AL, 0xFF1F1709L),
+    ROSA_APPLE("Rosa Apple", 0xFFFF375FL, 0xFF1F0C12L),
+    MORADO_APPLE("Morado Apple", 0xFFBF5AF2L, 0xFF181021L),
+    AMARILLO_APPLE("Amarillo Apple", 0xFFFFD60AL, 0xFF1D1A08L),
+    SAKURA("Sakura", 0xFFFFB7C5L, 0xFF1F1417L),
+    ATARDECER("Atardecer", 0xFFFF8A65L, 0xFF201310L),
+    NEON("Neón", 0xFFFF00E6L, 0xFF13081AL),
+    AURORA("Aurora", 0xFF5EFFC8L, 0xFF0A1C1CL),
+    ORO("Oro", 0xFFE8C36AL, 0xFF17140BL)
 }
 
 /** Colores que puedes elegir para el reloj. 0 = usar el color del tema. */
@@ -51,12 +68,16 @@ val CLOCK_COLORS: List<Pair<Long, String>> = listOf(
     0L to "Tema",
     0xFFFFFFFFL to "Blanco",
     0xFF7CFF9AL to "Verde",
+    0xFF30D158L to "Verde Apple",
+    0xFF0A84FFL to "Azul Apple",
+    0xFF7DD3FCL to "Azul",
+    0xFFFFD60AL to "Amarillo",
     0xFFFFB000L to "Ámbar",
-    0xFFFF7A18L to "Naranja",
+    0xFFFF9F0AL to "Naranja",
     0xFFFF5252L to "Rojo",
     0xFFFF5FA2L to "Rosa",
-    0xFFB388FFL to "Violeta",
-    0xFF7DD3FCL to "Azul",
+    0xFFBF5AF2L to "Morado",
+    0xFFE8C36AL to "Oro",
     0xFF5EEAD4L to "Cian"
 )
 
@@ -67,6 +88,8 @@ data class Settings(
     val clockFont: FontChoice = FontChoice.MONO,
     val clockColor: Long = 0L,
     val clockBold: Boolean = false,
+    val clockStacked: Boolean = false,
+    val showAmPm: Boolean = true,
     val showSeconds: Boolean = false,
     val showDate: Boolean = true,
     val is24h: Boolean = true,
@@ -85,6 +108,8 @@ data class Settings(
             .putString("clock_font", clockFont.name)
             .putLong("clock_color", clockColor)
             .putBoolean("clock_bold", clockBold)
+            .putBoolean("clock_stacked", clockStacked)
+            .putBoolean("show_ampm", showAmPm)
             .putBoolean("show_seconds", showSeconds)
             .putBoolean("show_date", showDate)
             .putBoolean("is24h", is24h)
@@ -106,6 +131,8 @@ data class Settings(
                 clockFont = sp.enumOr("clock_font", d.clockFont),
                 clockColor = sp.getLong("clock_color", d.clockColor),
                 clockBold = sp.getBoolean("clock_bold", d.clockBold),
+                clockStacked = sp.getBoolean("clock_stacked", d.clockStacked),
+                showAmPm = sp.getBoolean("show_ampm", d.showAmPm),
                 showSeconds = sp.getBoolean("show_seconds", d.showSeconds),
                 showDate = sp.getBoolean("show_date", d.showDate),
                 is24h = sp.getBoolean("is24h", d.is24h),
