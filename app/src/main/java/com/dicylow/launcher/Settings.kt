@@ -15,7 +15,7 @@ val CardColor = Color(0xFF1C1C26)
 val TextColor = Color(0xFFE5E7EB)
 val MutedColor = Color(0xFF6B7280)
 
-enum class ClockStyle { BIG, TERMINAL, MINIMAL }
+enum class ClockStyle { BIG, TERMINAL, MINIMAL, NEON, SOMBRA, CAPSULA }
 
 enum class ClockPos { TOP, CENTER, BOTTOM }
 

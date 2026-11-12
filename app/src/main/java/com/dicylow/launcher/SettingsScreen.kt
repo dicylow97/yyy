@@ -72,7 +72,14 @@ fun SettingsScreen(
             SectionTitle("RELOJ", accent, font)
             Label("Estilo", font)
             ChoiceRow(
-                options = listOf(ClockStyle.BIG to "Grande", ClockStyle.TERMINAL to "Terminal", ClockStyle.MINIMAL to "Minimal"),
+                options = listOf(
+                    ClockStyle.BIG to "Grande",
+                    ClockStyle.TERMINAL to "Terminal",
+                    ClockStyle.MINIMAL to "Minimal",
+                    ClockStyle.NEON to "Neón",
+                    ClockStyle.SOMBRA to "Sombra",
+                    ClockStyle.CAPSULA to "Cápsula"
+                ),
                 selected = settings.clockStyle,
                 accent = accent,
                 font = font,
@@ -95,7 +102,7 @@ fun SettingsScreen(
                 font = font,
                 onSelect = { onChange(settings.copy(clockColor = it)) }
             )
-            Label("Tamaño: ${settings.clockSize}", font)
+            Label("Tamaño: ${settings.clockSize}  (en una línea llega hasta el ancho de la pantalla; para más grande usa dos líneas)", font)
             Slider(
                 value = settings.clockSize.toFloat(),
                 onValueChange = { onChange(settings.copy(clockSize = it.roundToInt())) },
